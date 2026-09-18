@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#0F1117">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="JEE Tracker">
+<title>JEE Tracker</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0F1117;color:#E2E8F0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;-webkit-tap-highlight-color:transparent}
+input:focus{outline:none}
+input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
+select{-webkit-appearance:none;appearance:none}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:#2D3748;border-radius:99px}
+</style>
+</head>
+<body>
+<div id="root"><div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:12px"><div style="font-size:36px">📚</div><div style="color:#6C63FF;font-weight:700;font-size:16px">Loading JEE Tracker...</div><div style="color:#374151;font-size:12px">First load may take a few seconds</div></div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script>
+(function(){
+  const origWarn=console.warn;
+  console.warn=function(...args){
+    if(typeof args[0]==="string"&&args[0].includes("in-browser Babel transformer"))return;
+    origWarn.apply(console,args);
+  };
+})();
+</script>
+<script type="text/babel" data-presets="react">
+const{useState,useEffect,useCallback}=React;
+
+// ── STORAGE (localStorage — works perfectly in real browser & PWA) ──────
+const SK="jee_pwa_v1";
+const loadData=()=>{
+  // Try all keys including old Claude artifact keys
+  for(const k of[SK,"jee_tracker_v2","jee_v3","jee_tracker_v4","jee_main_tracker","jee_tracker"]){
+    try{
+      const r=localStorage.getItem(k);
+      if(r){const p=JSON.parse(r);if(p&&typeof p==="object"&&(p.theory||p.studyLog||p.mocks||p.streak!==undefined)){if(k!==SK)localStorage.setItem(SK,r);return p;}}
+    }catch{}
+  }return null;
+};
+const saveData=(s)=>{try{localStorage.setItem(SK,JSON.stringify(s));}catch{}};
+
+const BLANK={streak:0,lastStudyDate:null,studyLog:{},theory:{},questions:{},formulas:{},draws:{},revisions:{},revisionDates:{},subtopics:{},mocks:[]};
+const merge=(d)=>({...BLANK,...d,theory:d?.theory||{},questions:d?.questions||{},formulas:d?.formulas||{},draws:d?.draws||{},revisions:d?.revisions||{},revisionDates:d?.revisionDates||{},subtopics:d?.subtopics||{},mocks:Array.isArray(d?.mocks)?d.mocks:[],studyLog:d?.studyLog||{},streak:d?.streak||0,lastStudyDate:d?.lastStudyDate||null});
+
+// ── SYLLABUS ───────────────────────────────────────────────────────────
+const SYL={
+maths:{label:"Mathematics",color:"#F43F5E",chapters:[
+{id:"m1",name:"Sets, Relations & Functions",topics:[{id:"m1t1",name:"Sets & Representation"},{id:"m1t2",name:"Union, Intersection, Complement"},{id:"m1t3",name:"Power Set"},{id:"m1t4",name:"Relations & Types"},{id:"m1t5",name:"Equivalence Relations"},{id:"m1t6",name:"Functions (one-one, onto, into)"},{id:"m1t7",name:"Composition of Functions"}]},
+{id:"m2",name:"Complex Numbers & Quadratic Equations",topics:[{id:"m2t1",name:"Complex Numbers as Ordered Pairs"},{id:"m2t2",name:"Argand Diagram"},{id:"m2t3",name:"Algebra of Complex Numbers"},{id:"m2t4",name:"Modulus & Argument"},{id:"m2t5",name:"Quadratic Equations"},{id:"m2t6",name:"Nature of Roots, Vieta's Formulas"}]},
+{id:"m3",name:"Matrices & Determinants",topics:[{id:"m3t1",name:"Types of Matrices, Algebra"},{id:"m3t2",name:"Determinants (2×2 and 3×3)"},{id:"m3t3",name:"Area of Triangle using Det."},{id:"m3t4",name:"Adjoint & Inverse of Matrix"},{id:"m3t5",name:"System of Linear Equations"}]},
+{id:"m4",name:"Permutations & Combinations",topics:[{id:"m4t1",name:"Fundamental Principle of Counting"},{id:"m4t2",name:"Permutations P(n,r)"},{id:"m4t3",name:"Combinations C(n,r)"},{id:"m4t4",name:"Applications"}]},
+{id:"m5",name:"Binomial Theorem",topics:[{id:"m5t1",name:"Binomial Theorem"},{id:"m5t2",name:"General Term"},{id:"m5t3",name:"Middle Term"},{id:"m5t4",name:"Applications"}]},
+{id:"m6",name:"Sequences & Series",topics:[{id:"m6t1",name:"Arithmetic Progressions"},{id:"m6t2",name:"Geometric Progressions"},{id:"m6t3",name:"Arithmetic & Geometric Means"},{id:"m6t4",name:"Relation between AM & GM"},{id:"m6t5",name:"AGP & Special Series"}]},
+{id:"m7",name:"Limits, Continuity & Differentiability",topics:[{id:"m7t1",name:"Real-valued Functions"},{id:"m7t2",name:"Limits (L'Hopital, Sandwich)"},{id:"m7t3",name:"Continuity & Differentiability"},{id:"m7t4",name:"Differentiation Rules"},{id:"m7t5",name:"Diff. of Trig, Log, Exp, Implicit"},{id:"m7t6",name:"Derivatives of 2nd Order"},{id:"m7t7",name:"Rate of Change, Monotonicity"},{id:"m7t8",name:"Maxima & Minima"}]},
+{id:"m8",name:"Integral Calculus",topics:[{id:"m8t1",name:"Antiderivative & Fundamental Integrals"},{id:"m8t2",name:"Integration by Substitution"},{id:"m8t3",name:"Integration by Parts"},{id:"m8t4",name:"Integration by Partial Fractions"},{id:"m8t5",name:"Standard Integral Forms"},{id:"m8t6",name:"Definite Integrals & Properties"},{id:"m8t7",name:"Area under Curves"}]},
+{id:"m9",name:"Differential Equations",topics:[{id:"m9t1",name:"Order & Degree of ODE"},{id:"m9t2",name:"Separation of Variables"},{id:"m9t3",name:"Homogeneous DEs"},{id:"m9t4",name:"Linear DE: dy/dx + P(x)y = Q(x)"}]},
+{id:"m10",name:"Coordinate Geometry",topics:[{id:"m10t1",name:"Distance, Section Formula, Locus"},{id:"m10t2",name:"Straight Lines (all forms)"},{id:"m10t3",name:"Angle between Lines"},{id:"m10t4",name:"Circle"},{id:"m10t5",name:"Parabola"},{id:"m10t6",name:"Ellipse"},{id:"m10t7",name:"Hyperbola"}]},
+{id:"m11",name:"3D Geometry",topics:[{id:"m11t1",name:"Coordinates in Space, Distance"},{id:"m11t2",name:"Direction Ratios & Cosines"},{id:"m11t3",name:"Equation of a Line in 3D"},{id:"m11t4",name:"Skew Lines & Shortest Distance"},{id:"m11t5",name:"Plane Equations"}]},
+{id:"m12",name:"Vector Algebra",topics:[{id:"m12t1",name:"Vectors & Scalars, Addition"},{id:"m12t2",name:"Components in 2D & 3D"},{id:"m12t3",name:"Dot Product"},{id:"m12t4",name:"Cross Product"}]},
+{id:"m13",name:"Statistics & Probability",topics:[{id:"m13t1",name:"Mean, Median, Mode"},{id:"m13t2",name:"Standard Deviation & Variance"},{id:"m13t3",name:"Probability of an Event"},{id:"m13t4",name:"Addition & Multiplication Theorems"},{id:"m13t5",name:"Bayes' Theorem"},{id:"m13t6",name:"Probability Distribution"}]},
+{id:"m14",name:"Trigonometry",topics:[{id:"m14t1",name:"Trigonometric Identities & Functions"},{id:"m14t2",name:"Inverse Trigonometric Functions"},{id:"m14t3",name:"Properties & Applications"}]},
+]},
+physics:{label:"Physics",color:"#06B6D4",chapters:[
+{id:"p1",name:"Units & Measurements",topics:[{id:"p1t1",name:"SI Units, Fundamental & Derived"},{id:"p1t2",name:"Least Count & Significant Figures"},{id:"p1t3",name:"Errors in Measurement"},{id:"p1t4",name:"Dimensional Analysis"}]},
+{id:"p2",name:"Kinematics",topics:[{id:"p2t1",name:"Motion in Straight Line"},{id:"p2t2",name:"Uniformly Accelerated Motion"},{id:"p2t3",name:"v-t & x-t Graphs"},{id:"p2t4",name:"Relative Velocity"},{id:"p2t5",name:"Projectile Motion"},{id:"p2t6",name:"Uniform Circular Motion"}]},
+{id:"p3",name:"Laws of Motion",topics:[{id:"p3t1",name:"Newton's 3 Laws"},{id:"p3t2",name:"Momentum & Impulse"},{id:"p3t3",name:"Conservation of Linear Momentum"},{id:"p3t4",name:"Friction"},{id:"p3t5",name:"Circular Motion Dynamics"}]},
+{id:"p4",name:"Work, Energy & Power",topics:[{id:"p4t1",name:"Work by Constant & Variable Force"},{id:"p4t2",name:"Work-Energy Theorem"},{id:"p4t3",name:"KE, PE, Conservation of Energy"},{id:"p4t4",name:"Power"},{id:"p4t5",name:"Elastic & Inelastic Collisions"}]},
+{id:"p5",name:"Rotational Motion",topics:[{id:"p5t1",name:"Centre of Mass"},{id:"p5t2",name:"Torque & Angular Momentum"},{id:"p5t3",name:"Conservation of Angular Momentum"},{id:"p5t4",name:"Moment of Inertia"},{id:"p5t5",name:"Parallel & Perpendicular Axes Theorems"},{id:"p5t6",name:"Rotational Motion Equations"}]},
+{id:"p6",name:"Gravitation",topics:[{id:"p6t1",name:"Universal Law of Gravitation"},{id:"p6t2",name:"g variation with altitude & depth"},{id:"p6t3",name:"Kepler's Laws"},{id:"p6t4",name:"Gravitational PE & Potential"},{id:"p6t5",name:"Escape & Orbital Velocity"},{id:"p6t6",name:"Satellites & Energy"}]},
+{id:"p7",name:"Properties of Solids & Liquids",topics:[{id:"p7t1",name:"Stress-Strain, Hooke's Law"},{id:"p7t2",name:"Fluid Pressure, Pascal's Law"},{id:"p7t3",name:"Viscosity, Terminal Velocity"},{id:"p7t4",name:"Bernoulli's Principle"},{id:"p7t5",name:"Surface Tension, Capillarity"},{id:"p7t6",name:"Thermal Expansion, Calorimetry"},{id:"p7t7",name:"Heat Transfer"}]},
+{id:"p8",name:"Thermodynamics",topics:[{id:"p8t1",name:"Zeroth Law, Temperature"},{id:"p8t2",name:"First Law, Internal Energy"},{id:"p8t3",name:"Isothermal & Adiabatic Processes"},{id:"p8t4",name:"Second Law, Reversible/Irreversible"}]},
+{id:"p9",name:"Kinetic Theory of Gases",topics:[{id:"p9t1",name:"Ideal Gas Equation"},{id:"p9t2",name:"Kinetic Theory & Pressure"},{id:"p9t3",name:"RMS Speed, Degrees of Freedom"},{id:"p9t4",name:"Law of Equipartition, Specific Heats"},{id:"p9t5",name:"Mean Free Path"}]},
+{id:"p10",name:"Oscillations & Waves (SHM)",topics:[{id:"p10t1",name:"SHM Equation & Phase"},{id:"p10t2",name:"Spring Oscillations, Energy"},{id:"p10t3",name:"Simple Pendulum"},{id:"p10t4",name:"Wave Motion, Types"},{id:"p10t5",name:"Standing Waves, Strings & Organ Pipes"},{id:"p10t6",name:"Beats"}]},
+{id:"p11",name:"Electrostatics",topics:[{id:"p11t1",name:"Coulomb's Law, Superposition"},{id:"p11t2",name:"Electric Field, Dipole"},{id:"p11t3",name:"Gauss's Law & Applications"},{id:"p11t4",name:"Electric Potential & PE"},{id:"p11t5",name:"Conductors, Dielectrics"},{id:"p11t6",name:"Capacitors, Combinations, Energy"}]},
+{id:"p12",name:"Current Electricity",topics:[{id:"p12t1",name:"Drift Velocity, Ohm's Law"},{id:"p12t2",name:"Resistivity, Conductivity"},{id:"p12t3",name:"Series & Parallel Resistors"},{id:"p12t4",name:"EMF, Internal Resistance, Cells"},{id:"p12t5",name:"Kirchhoff's Laws"},{id:"p12t6",name:"Wheatstone Bridge, Metre Bridge"}]},
+{id:"p13",name:"Magnetic Effects & Magnetism",topics:[{id:"p13t1",name:"Biot-Savart Law"},{id:"p13t2",name:"Ampere's Law & Applications"},{id:"p13t3",name:"Force on Charge & Current"},{id:"p13t4",name:"Galvanometer, Ammeter, Voltmeter"},{id:"p13t5",name:"Magnetic Dipole, Bar Magnet"},{id:"p13t6",name:"Para, Dia, Ferromagnetic Materials"}]},
+{id:"p14",name:"Electromagnetic Induction & AC",topics:[{id:"p14t1",name:"Faraday's Law, Lenz's Law"},{id:"p14t2",name:"Eddy Currents, Self & Mutual Inductance"},{id:"p14t3",name:"AC: Peak, RMS, Reactance, Impedance"},{id:"p14t4",name:"LCR Series Circuit & Resonance"},{id:"p14t5",name:"Power in AC, Wattless Current"},{id:"p14t6",name:"AC Generator & Transformer"}]},
+{id:"p15",name:"Electromagnetic Waves",topics:[{id:"p15t1",name:"Displacement Current"},{id:"p15t2",name:"EM Wave Characteristics"},{id:"p15t3",name:"EM Spectrum & Applications"}]},
+{id:"p16",name:"Optics",topics:[{id:"p16t1",name:"Reflection, Spherical Mirrors"},{id:"p16t2",name:"Refraction, Lens Formula"},{id:"p16t3",name:"Total Internal Reflection"},{id:"p16t4",name:"Prism & Dispersion"},{id:"p16t5",name:"Microscope & Telescope"},{id:"p16t6",name:"Huygens' Principle"},{id:"p16t7",name:"Young's Double Slit, Interference"},{id:"p16t8",name:"Diffraction & Polarization"}]},
+{id:"p17",name:"Dual Nature of Matter & Radiation",topics:[{id:"p17t1",name:"Photoelectric Effect, Einstein's Equation"},{id:"p17t2",name:"de-Broglie Relation, Matter Waves"}]},
+{id:"p18",name:"Atoms & Nuclei",topics:[{id:"p18t1",name:"Rutherford & Bohr Model"},{id:"p18t2",name:"Hydrogen Spectrum"},{id:"p18t3",name:"Nuclear Composition, Mass Defect"},{id:"p18t4",name:"Binding Energy, Fission & Fusion"}]},
+{id:"p19",name:"Semiconductor Electronics",topics:[{id:"p19t1",name:"Semiconductors, P-N Diode"},{id:"p19t2",name:"Diode as Rectifier"},{id:"p19t3",name:"LED, Photodiode, Solar Cell"},{id:"p19t4",name:"Zener Diode as Voltage Regulator"},{id:"p19t5",name:"Logic Gates"}]},
+]},
+physical:{label:"Physical Chemistry",parent:"chem",color:"#10B981",chapters:[
+{id:"pc1",name:"Basic Concepts in Chemistry",topics:[{id:"pc1t1",name:"Dalton's Theory, Atom & Molecule"},{id:"pc1t2",name:"Laws of Chemical Combination"},{id:"pc1t3",name:"Mole Concept, Molar Mass"},{id:"pc1t4",name:"Empirical & Molecular Formulae"},{id:"pc1t5",name:"Stoichiometry"}]},
+{id:"pc2",name:"Atomic Structure",topics:[{id:"pc2t1",name:"EM Radiation, Photoelectric Effect"},{id:"pc2t2",name:"Bohr Model & Hydrogen Spectrum"},{id:"pc2t3",name:"de Broglie, Heisenberg Uncertainty"},{id:"pc2t4",name:"Quantum Mechanical Model"},{id:"pc2t5",name:"Quantum Numbers (n, l, m, s)"},{id:"pc2t6",name:"Shapes of s, p, d Orbitals"},{id:"pc2t7",name:"Aufbau, Pauli, Hund's Rule"},{id:"pc2t8",name:"Electronic Configuration"}]},
+{id:"pc3",name:"Chemical Thermodynamics",topics:[{id:"pc3t1",name:"System, Surroundings, State Functions"},{id:"pc3t2",name:"First Law, Enthalpy, Heat Capacity"},{id:"pc3t3",name:"Hess's Law, Enthalpies of Reaction"},{id:"pc3t4",name:"Second Law, Entropy, Spontaneity"},{id:"pc3t5",name:"Gibbs Free Energy & Equilibrium"}]},
+{id:"pc4",name:"Solutions",topics:[{id:"pc4t1",name:"Concentration Units"},{id:"pc4t2",name:"Raoult's Law, Ideal & Non-ideal"},{id:"pc4t3",name:"Colligative Properties"},{id:"pc4t4",name:"van't Hoff Factor"}]},
+{id:"pc5",name:"Equilibrium",topics:[{id:"pc5t1",name:"Dynamic Equilibrium Concept"},{id:"pc5t2",name:"Physical Equilibria, Henry's Law"},{id:"pc5t3",name:"Kp, Kc & their Significance"},{id:"pc5t4",name:"Le Chatelier's Principle"},{id:"pc5t5",name:"Ionic Equilibrium, Acids & Bases"},{id:"pc5t6",name:"pH, Buffer, Common Ion Effect"},{id:"pc5t7",name:"Solubility Product"}]},
+{id:"pc6",name:"Redox & Electrochemistry",topics:[{id:"pc6t1",name:"Oxidation Numbers, Balancing Redox"},{id:"pc6t2",name:"Electrolytic Conduction, Kohlrausch's Law"},{id:"pc6t3",name:"Galvanic Cells, Electrode Potential"},{id:"pc6t4",name:"Nernst Equation"},{id:"pc6t5",name:"Cell Potential & Gibbs Energy"},{id:"pc6t6",name:"Dry Cell, Lead Accumulator, Fuel Cell"}]},
+{id:"pc7",name:"Chemical Kinetics",topics:[{id:"pc7t1",name:"Rate of Reaction, Factors"},{id:"pc7t2",name:"Order & Molecularity, Rate Law"},{id:"pc7t3",name:"Zero & First Order Reactions, Half-life"},{id:"pc7t4",name:"Arrhenius Theory, Activation Energy"}]},
+]},
+organic:{label:"Organic Chemistry",parent:"chem",color:"#F59E0B",chapters:[
+{id:"oc1",name:"Basic Principles / GOC",topics:[{id:"oc1t1",name:"Tetravalency of Carbon, Hybridization"},{id:"oc1t2",name:"Classification by Functional Groups"},{id:"oc1t3",name:"IUPAC Nomenclature"},{id:"oc1t4",name:"Isomerism"},{id:"oc1t5",name:"Homolytic & Heterolytic Fission"},{id:"oc1t6",name:"Carbocations, Carbanions, Free Radicals"},{id:"oc1t7",name:"Inductive Effect, Resonance, Hyperconjugation"},{id:"oc1t8",name:"Electrophiles & Nucleophiles"},{id:"oc1t9",name:"Types of Reactions"}]},
+{id:"oc2",name:"Purification & Characterisation",topics:[{id:"oc2t1",name:"Crystallization, Sublimation, Distillation"},{id:"oc2t2",name:"Chromatography"},{id:"oc2t3",name:"Detection of N, S, P, Halogens"},{id:"oc2t4",name:"Empirical & Molecular Formula Calc."}]},
+{id:"oc3",name:"Hydrocarbons",topics:[{id:"oc3t1",name:"Alkanes: Conformations, Halogenation"},{id:"oc3t2",name:"Alkenes: Electrophilic Addition, Markovnikov"},{id:"oc3t3",name:"Alkynes: Acidic Character, Addition Rxns"},{id:"oc3t4",name:"Aromatic Hydrocarbons: Benzene, EAS"},{id:"oc3t5",name:"Friedel-Crafts, Directive Influence"}]},
+{id:"oc4",name:"Haloalkanes & Haloarenes",topics:[{id:"oc4t1",name:"Nature of C-X Bond"},{id:"oc4t2",name:"Substitution Reactions (SN1, SN2)"},{id:"oc4t3",name:"Chloroform, Iodoform, Freons, DDT"}]},
+{id:"oc5",name:"Alcohols, Phenols & Ethers",topics:[{id:"oc5t1",name:"1, 2, 3 Alcohols, Dehydration"},{id:"oc5t2",name:"Phenols: Acidic Nature, EAS Reactions"},{id:"oc5t3",name:"Reimer-Tiemann Reaction"},{id:"oc5t4",name:"Ethers: Structure & Properties"}]},
+{id:"oc6",name:"Aldehydes, Ketones & Carboxylic Acids",topics:[{id:"oc6t1",name:"Nature of Carbonyl Group"},{id:"oc6t2",name:"Nucleophilic Addition"},{id:"oc6t3",name:"Oxidation & Reduction"},{id:"oc6t4",name:"Aldol Condensation"},{id:"oc6t5",name:"Cannizzaro Reaction"},{id:"oc6t6",name:"Haloform Reaction"},{id:"oc6t7",name:"Carboxylic Acids: Acidity Factors"}]},
+{id:"oc7",name:"Amines",topics:[{id:"oc7t1",name:"Nomenclature, Classification"},{id:"oc7t2",name:"Basic Character"},{id:"oc7t3",name:"Diazonium Salts & Synthetic Uses"}]},
+{id:"oc8",name:"Biomolecules",topics:[{id:"oc8t1",name:"Carbohydrates"},{id:"oc8t2",name:"Proteins: Amino Acids, Peptide Bond"},{id:"oc8t3",name:"Vitamins: Classification & Functions"},{id:"oc8t4",name:"Nucleic Acids: DNA & RNA"},{id:"oc8t5",name:"Hormones"}]},
+]},
+inorganic:{label:"Inorganic Chemistry",parent:"chem",color:"#8B5CF6",chapters:[
+{id:"ic1",name:"Chemical Bonding & Molecular Structure",topics:[{id:"ic1t1",name:"Ionic Bonding, Lattice Enthalpy"},{id:"ic1t2",name:"Covalent Bond, Fajan's Rule"},{id:"ic1t3",name:"VSEPR Theory & Shapes"},{id:"ic1t4",name:"Hybridization (s, p, d)"},{id:"ic1t5",name:"Resonance, Dipole Moment"},{id:"ic1t6",name:"MOT: MO Config., Bond Order"},{id:"ic1t7",name:"Metallic & Hydrogen Bonding"}]},
+{id:"ic2",name:"Classification & Periodicity",topics:[{id:"ic2t1",name:"Modern Periodic Law, Blocks"},{id:"ic2t2",name:"Atomic & Ionic Radii Trends"},{id:"ic2t3",name:"Ionization Enthalpy Trends"},{id:"ic2t4",name:"Electron Gain Enthalpy Trends"},{id:"ic2t5",name:"Oxidation States & Reactivity"}]},
+{id:"ic3",name:"s-Block Elements",topics:[{id:"ic3t1",name:"Alkali Metals: Properties & Reactions"},{id:"ic3t2",name:"Alkaline Earth Metals"},{id:"ic3t3",name:"Important Compounds"}]},
+{id:"ic4",name:"p-Block Elements",topics:[{id:"ic4t1",name:"Group 13: Boron Family"},{id:"ic4t2",name:"Group 14: Carbon Family"},{id:"ic4t3",name:"Group 15: Nitrogen Family"},{id:"ic4t4",name:"Group 16: Oxygen Family"},{id:"ic4t5",name:"Group 17: Halogens"},{id:"ic4t6",name:"Group 18: Noble Gases"}]},
+{id:"ic5",name:"d & f Block Elements",topics:[{id:"ic5t1",name:"Transition Elements: Config & Properties"},{id:"ic5t2",name:"Oxidation States, Color, Magnetism"},{id:"ic5t3",name:"K2Cr2O7 & KMnO4"},{id:"ic5t4",name:"Lanthanoids & Actinoids"}]},
+{id:"ic6",name:"Coordination Compounds",topics:[{id:"ic6t1",name:"Werner's Theory, Ligands"},{id:"ic6t2",name:"IUPAC Nomenclature"},{id:"ic6t3",name:"Isomerism"},{id:"ic6t4",name:"Valence Bond Theory"},{id:"ic6t5",name:"Crystal Field Theory, Color, Magnetism"},{id:"ic6t6",name:"Biological & Industrial Importance"}]},
+{id:"ic7",name:"Metallurgy",topics:[{id:"ic7t1",name:"Occurrence, Concentration of Ores"},{id:"ic7t2",name:"Reduction Methods"},{id:"ic7t3",name:"Refining Methods"}]},
+{id:"ic8",name:"Environmental & Surface Chemistry",topics:[{id:"ic8t1",name:"Environmental Chemistry: Pollution"},{id:"ic8t2",name:"Surface Chemistry: Adsorption"},{id:"ic8t3",name:"Colloids: Lyophilic & Lyophobic"},{id:"ic8t4",name:"Emulsions"}]},
+]},
+};
+
+const RDAYS=[1,3,7,21,60];
+const todayStr=()=>new Date().toISOString().split("T")[0];
+const isPast=(start,days)=>{const d=new Date(start);d.setDate(d.getDate()+days);return d<=new Date(todayStr());};
+const dLeft=(start,days)=>{const d=new Date(start);d.setDate(d.getDate()+days);return Math.ceil((d-new Date(todayStr()))/86400000);};
+
+// ── SMALL COMPONENTS ──────────────────────────────────────────────────
+const Flame=()=><svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M12 2C12 2 8 7 8 11C8 13.21 9.79 15 12 15C14.21 15 16 13.21 16 11C16 7 12 2 12 2Z" fill="#F59E0B"/><path d="M12 15C9.79 15 8 16.79 8 19C8 21.21 9.79 23 12 23C14.21 23 16 21.21 16 19C16 16.79 14.21 15 12 15Z" fill="#EF4444" opacity="0.7"/><path d="M12 10C12 10 10 12.5 10 14C10 15.1 10.9 16 12 16C13.1 16 14 15.1 14 14C14 12.5 12 10 12 10Z" fill="#FCD34D"/></svg>;
+const BkBtn=({onClick})=><button onClick={onClick} style={{background:"#1E2433",border:"1px solid #2D3748",borderRadius:10,color:"#94A3B8",cursor:"pointer",padding:"7px 11px",display:"flex",alignItems:"center",gap:4,fontSize:13,fontWeight:600,flexShrink:0}}><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M15 18L9 12L15 6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>Back</button>;
+const CB=({on,color,onClick})=><div onClick={onClick} style={{width:22,height:22,borderRadius:6,border:`2px solid ${on?color:"#374151"}`,background:on?color:"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,cursor:"pointer",transition:"all 0.15s"}}>{on&&<svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17L4 12" stroke="#0F1117" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>}</div>;
+const PBar=({pct,color,h=6})=><div style={{background:"#1E2433",borderRadius:99,height:h,overflow:"hidden"}}><div style={{width:`${Math.min(100,Math.max(0,pct))}%`,height:"100%",background:color,borderRadius:99,transition:"width 0.35s"}}/></div>;
+const DuePill=()=><div style={{background:"#7F1D1D",border:"1px solid #EF4444",borderRadius:6,color:"#FCA5A5",fontSize:10,fontWeight:800,padding:"2px 7px",flexShrink:0,whiteSpace:"nowrap"}}>! DUE</div>;
+const PageHdr=({title,sub,color,onBack,right})=><div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:"#0D1117",borderBottom:"1px solid #1E2433",position:"sticky",top:0,zIndex:10}}><BkBtn onClick={onBack}/><div style={{flex:1}}>{sub&&<div style={{fontSize:11,color,textTransform:"uppercase",letterSpacing:1,marginBottom:1}}>{sub}</div>}<div style={{fontSize:16,fontWeight:700,color:"#E2E8F0"}}>{title}</div></div>{right}</div>;
+
+const topicDue=(id,st)=>{if(!st.theory[id]||!st.revisionDates[id])return false;return RDAYS.some(d=>!st.revisions[`${id}_${d}`]&&isPast(st.revisionDates[id],d));};
+const subDue=(sb)=>{if(!sb?.theory||!sb?.revisionDate)return false;return RDAYS.some(d=>!(sb.revisions||{})[d]&&isPast(sb.revisionDate,d));};
+const chDue=(ch,st)=>ch.topics.some(t=>topicDue(t.id,st)||(st.subtopics[t.id]||[]).some(s=>subDue(s)));
+
+function RevBlock({id,start,doneMap,color,theoryOn,onTick}){
+  if(!theoryOn)return<div style={{marginTop:10,borderTop:"1px solid #1E2433",paddingTop:8,fontSize:11,color:"#4B5563"}}>Tick Theory to start revision countdown</div>;
+  return<div style={{marginTop:10,borderTop:"1px solid #1E2433",paddingTop:8}}><div style={{fontSize:10,color:"#64748B",marginBottom:6,textTransform:"uppercase",letterSpacing:1}}>📅 Revision Schedule</div><div style={{display:"flex",flexWrap:"wrap",gap:6}}>{RDAYS.map(d=>{const done=!!(doneMap||{})[d],due=!done&&start&&isPast(start,d),dl=start&&!done?dLeft(start,d):null;return<div key={d} onClick={()=>onTick(d)} style={{display:"flex",alignItems:"center",gap:5,padding:"4px 9px",borderRadius:8,cursor:"pointer",fontSize:12,fontWeight:500,background:done?`${color}22`:due?"#7F1D1D":"#1E2433",border:`1px solid ${done?color:due?"#EF4444":"#2D3748"}`,color:done?color:due?"#FCA5A5":"#64748B"}}><CB on={done} color={color} onClick={()=>{}}/><span>Day {d}</span>{!done&&dl!==null&&<span style={{fontSize:9,color:due?"#EF4444":"#4B5563"}}>{due?"DUE!":dl>0?`${dl}d`:""}</span>}</div>;})}</div></div>;
+}
+
+function SubPanel({topicId,subs,color,onUpdate}){
+  const[name,setName]=useState("");
+  const add=()=>{const n=name.trim();if(!n)return;onUpdate([...subs,{id:`st_${Date.now()}`,name:n,theory:false,questions:false,revisionDate:null,revisions:{}}]);setName("");};
+  const upd=(id,patch)=>onUpdate(subs.map(s=>s.id===id?{...s,...patch}:s));
+  const del=(id)=>onUpdate(subs.filter(s=>s.id!==id));
+  const tickT=(sb)=>{const v=!sb.theory;upd(sb.id,{theory:v,revisionDate:v&&!sb.revisionDate?todayStr():sb.revisionDate});};
+  const tickR=(sb,d)=>upd(sb.id,{revisions:{...(sb.revisions||{}),[d]:!(sb.revisions||{})[d]}});
+  return<div style={{marginTop:12,borderTop:"1px solid #1E2433",paddingTop:10}}><div style={{fontSize:10,color:"#64748B",marginBottom:8,textTransform:"uppercase",letterSpacing:1}}>➕ Sub-Topics ({subs.length})</div><div style={{display:"flex",gap:6,marginBottom:8}}><input value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&add()} placeholder="Add sub-topic..." style={{...G.inp,flex:1,fontSize:13}}/><button onClick={add} style={{...G.btn,padding:"7px 12px",fontSize:12}}>Add</button></div>{subs.map(sb=>{const od=subDue(sb);return<div key={sb.id} style={{background:"#0D1117",borderRadius:10,padding:"10px 12px",marginBottom:7,borderLeft:`2px solid ${od?"#EF4444":color+"44"}`}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}><div style={{fontWeight:600,fontSize:13,color:"#CBD5E1",flex:1}}>{sb.name}</div><div style={{display:"flex",gap:6,alignItems:"center"}}>{od&&<DuePill/>}<button onClick={()=>del(sb.id)} style={{background:"transparent",border:"none",color:"#4B5563",cursor:"pointer",fontSize:14,padding:"2px 4px"}}>✕</button></div></div><div style={{display:"flex",gap:14,marginBottom:6}}>{[{l:"Theory",v:sb.theory,fn:()=>tickT(sb)},{l:"Questions",v:sb.questions,fn:()=>upd(sb.id,{questions:!sb.questions})}].map(({l,v,fn})=><div key={l} onClick={fn} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer"}}><CB on={!!v} color={color} onClick={()=>{}}/><span style={{fontSize:12,color:v?"#4B5563":"#94A3B8",textDecoration:v?"line-through":"none"}}>{l}</span></div>)}</div><RevBlock id={sb.id} start={sb.revisionDate} doneMap={sb.revisions||{}} color={color} theoryOn={!!sb.theory} onTick={(d)=>tickR(sb,d)}/></div>;})}</div>;
+}
+
+function RevMenu({st,onTick,onSubTick,onBack}){
+  const overdue=[],upcoming=[];
+  Object.entries(SYL).forEach(([,sub])=>{sub.chapters.forEach(ch=>{ch.topics.forEach(t=>{if(st.theory[t.id]&&st.revisionDates[t.id]){RDAYS.forEach(d=>{const done=!!st.revisions[`${t.id}_${d}`];if(!done&&isPast(st.revisionDates[t.id],d))overdue.push({key:`${t.id}_${d}`,name:t.name,sub:sub.label,ch:ch.name,color:sub.color,day:d,type:"topic",id:t.id});else if(!done){const dl=dLeft(st.revisionDates[t.id],d);if(dl>0&&dl<=2)upcoming.push({key:`${t.id}_${d}`,name:t.name,sub:sub.label,ch:ch.name,color:sub.color,day:d,daysLeft:dl});}});}(st.subtopics[t.id]||[]).forEach(sb=>{if(!sb.theory||!sb.revisionDate)return;RDAYS.forEach(d=>{const done=!!(sb.revisions||{})[d];if(!done&&isPast(sb.revisionDate,d))overdue.push({key:`${sb.id}_${d}`,name:sb.name,sub:sub.label,ch:`${ch.name} - sub`,color:sub.color,day:d,type:"subtopic",stId:sb.id,topicId:t.id});else if(!done){const dl=dLeft(sb.revisionDate,d);if(dl>0&&dl<=2)upcoming.push({key:`${sb.id}_${d}`,name:sb.name,sub:sub.label,ch:`${ch.name}`,color:sub.color,day:d,daysLeft:dl});}});});});});});
+  const tick=(item)=>{if(item.type==="topic")onTick(item.id,item.day);else onSubTick(item.topicId,item.stId,item.day);};
+  return<div style={G.app}><PageHdr title="Revision Due" sub="Revision" color="#EF4444" onBack={onBack} right={<div style={{background:"#7F1D1D",borderRadius:10,padding:"4px 12px",border:"1px solid #EF4444",textAlign:"center"}}><div style={{fontSize:18,fontWeight:800,color:"#FCA5A5",fontFamily:"monospace"}}>{overdue.length}</div><div style={{fontSize:9,color:"#EF4444",textTransform:"uppercase"}}>overdue</div></div>}/><div style={{padding:"12px 14px 32px"}}>{overdue.length===0?<div style={{textAlign:"center",padding:"40px 20px"}}><div style={{fontSize:40,marginBottom:8}}>✅</div><div style={{fontSize:15,color:"#64748B",fontWeight:600}}>All caught up!</div></div>:<><div style={{fontSize:11,color:"#EF4444",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Overdue — {overdue.length}</div>{overdue.map(item=><div key={item.key} style={{...G.card,marginBottom:9,borderLeft:"3px solid #EF4444"}}><div style={{fontWeight:700,fontSize:14,color:"#E2E8F0",marginBottom:3}}>{item.name}</div><div style={{fontSize:11,color:"#4B5563",marginBottom:8}}><span style={{color:item.color}}>{item.sub}</span> - {item.ch}</div><div onClick={()=>tick(item)} style={{display:"inline-flex",alignItems:"center",gap:7,padding:"5px 14px",borderRadius:8,cursor:"pointer",fontSize:12,fontWeight:700,background:"#7F1D1D",border:"1px solid #EF4444",color:"#FCA5A5"}}><CB on={false} color="#EF4444" onClick={()=>{}}/>Day {item.day} — DUE!</div></div>)}</>}{upcoming.length>0&&<><div style={{fontSize:11,color:"#F59E0B",textTransform:"uppercase",letterSpacing:1,margin:"14px 0 8px"}}>Coming Up — within 2 days</div>{upcoming.map(item=><div key={item.key} style={{...G.card,marginBottom:8,borderLeft:"2px solid #92400E",opacity:0.85}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><div><div style={{fontWeight:600,fontSize:13,color:"#E2E8F0"}}>{item.name}</div><div style={{fontSize:11,color:"#4B5563"}}><span style={{color:item.color}}>{item.sub}</span> - {item.ch}</div></div><div style={{textAlign:"right"}}><div style={{fontSize:11,color:"#F59E0B",fontWeight:700}}>Day {item.day}</div><div style={{fontSize:10,color:"#92400E"}}>in {item.daysLeft}d</div></div></div></div>)}</>}</div></div>;
+}
+
+function MockView({mocks,onSave,onDelete,onBack}){
+  const[form,setForm]=useState({date:todayStr(),type:"Full",physics:"",chemistry:"",maths:"",notes:""});
+  const[show,setShow]=useState(false);const[editId,setEditId]=useState(null);
+  const tot=m=>(parseFloat(m.physics)||0)+(parseFloat(m.chemistry)||0)+(parseFloat(m.maths)||0);
+  const sc=s=>s>=200?"#10B981":s>=150?"#F59E0B":"#F43F5E";
+  const SBC={physics:"#06B6D4",chemistry:"#10B981",maths:"#F43F5E"};
+  const saveIt=()=>{if(!form.physics&&!form.chemistry&&!form.maths)return;onSave({...form,id:editId||Date.now().toString()},!!editId);setForm({date:todayStr(),type:"Full",physics:"",chemistry:"",maths:"",notes:""});setShow(false);setEditId(null);};
+  const best=mocks.length?Math.max(...mocks.map(tot)):0,latest=mocks.length?tot(mocks[mocks.length-1]):0,avg=mocks.length?Math.round(mocks.reduce((s,m)=>s+tot(m),0)/mocks.length):0;
+  return<div style={G.app}><PageHdr title="Test History" sub="Mock Tests" color="#F59E0B" onBack={onBack} right={<button onClick={()=>{setShow(true);setEditId(null);setForm({date:todayStr(),type:"Full",physics:"",chemistry:"",maths:"",notes:""});}} style={{...G.btn,padding:"7px 13px"}}>+ Add</button>}/>{mocks.length>0&&<div style={{display:"flex",gap:8,padding:"12px 14px 4px"}}>{[{l:"Tests",v:mocks.length,c:"#6C63FF"},{l:"Best",v:best,c:"#10B981"},{l:"Latest",v:latest,c:sc(latest)},{l:"Avg",v:avg,c:"#F59E0B"}].map(({l,v,c})=><div key={l} style={{flex:1,background:"#161B27",borderRadius:10,padding:"8px 4px",border:"1px solid #1E2433",textAlign:"center"}}><div style={{fontSize:17,fontWeight:800,color:c,fontFamily:"monospace"}}>{v}</div><div style={{fontSize:9,color:"#4B5563",textTransform:"uppercase"}}>{l}</div></div>)}</div>}{show&&<div style={{margin:"8px 14px",background:"#161B27",borderRadius:14,padding:"14px",border:"1px solid #2D2560"}}><div style={{fontSize:13,fontWeight:700,color:"#A5B4FC",marginBottom:10}}>{editId?"Edit":"New"} Mock Test</div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}><div><div style={G.lbl}>Date</div><input type="date" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))} style={{...G.inp,width:"100%",boxSizing:"border-box"}}/></div><div><div style={G.lbl}>Type</div><select value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))} style={{...G.inp,width:"100%",boxSizing:"border-box"}}>{["Full","JEE Main","JEE Advanced","Physics Only","Chemistry Only","Maths Only","Part Test"].map(t=><option key={t}>{t}</option>)}</select></div></div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:8}}>{[{k:"physics",l:"Physics",c:SBC.physics},{k:"chemistry",l:"Chem",c:SBC.chemistry},{k:"maths",l:"Maths",c:SBC.maths}].map(({k,l,c})=><div key={k}><div style={{...G.lbl,color:c}}>{l}</div><input type="number" min="-100" max="300" placeholder="0" value={form[k]} onChange={e=>setForm(f=>({...f,[k]:e.target.value}))} style={{...G.inp,width:"100%",boxSizing:"border-box",borderColor:c+"55"}}/></div>)}</div><div style={{marginBottom:10}}><div style={G.lbl}>Notes</div><input type="text" placeholder="weak spots..." value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} style={{...G.inp,width:"100%",boxSizing:"border-box"}}/></div><div style={{display:"flex",gap:8}}><button onClick={saveIt} style={{...G.btn,flex:1,padding:"9px"}}>{editId?"Update":"Save"}</button><button onClick={()=>{setShow(false);setEditId(null);}} style={{...G.btn,background:"#1E2433",border:"1px solid #374151",flex:1,padding:"9px"}}>Cancel</button></div></div>}<div style={{padding:"8px 14px 32px"}}>{mocks.length===0&&!show&&<div style={{textAlign:"center",padding:"40px 20px",color:"#374151"}}><div style={{fontSize:36,marginBottom:8}}>📋</div><div style={{fontSize:14}}>No tests yet.</div></div>}{[...mocks].reverse().map(m=>{const t=tot(m),p=parseFloat(m.physics)||0,c=parseFloat(m.chemistry)||0,ma=parseFloat(m.maths)||0;return<div key={m.id} style={{...G.card,marginBottom:10,borderLeft:`3px solid ${sc(t)}`}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}><div><div style={{fontSize:11,color:"#4B5563"}}>{m.date} - {m.type}</div><div style={{fontSize:22,fontWeight:800,color:sc(t),fontFamily:"monospace"}}>{t}<span style={{fontSize:11,color:"#374151"}}>/300</span></div></div><div style={{display:"flex",gap:6}}><button onClick={()=>{setForm({date:m.date,type:m.type,physics:m.physics,chemistry:m.chemistry,maths:m.maths,notes:m.notes||""});setEditId(m.id);setShow(true);}} style={{background:"#1E2433",border:"1px solid #2D3748",borderRadius:8,color:"#94A3B8",cursor:"pointer",padding:"4px 8px",fontSize:12}}>✏️</button><button onClick={()=>onDelete(m.id)} style={{background:"#2D0A0A",border:"1px solid #7F1D1D",borderRadius:8,color:"#FCA5A5",cursor:"pointer",padding:"4px 8px",fontSize:12}}>🗑</button></div></div><div style={{display:"flex",gap:6}}>{[{l:"Phy",v:p,c:SBC.physics},{l:"Che",v:c,c:SBC.chemistry},{l:"Mat",v:ma,c:SBC.maths}].map(({l,v,c})=><div key={l} style={{flex:1,background:"#0D1117",borderRadius:8,padding:"6px 0",textAlign:"center"}}><div style={{fontSize:14,fontWeight:700,color:c,fontFamily:"monospace"}}>{v}</div><div style={{fontSize:9,color:"#4B5563"}}>{l}</div><div style={{margin:"3px 8px 0",height:3,background:"#1E2433",borderRadius:99}}><div style={{height:"100%",borderRadius:99,background:c,width:`${Math.max(0,Math.min(100,(v/100)*100))}%`}}/></div></div>)}</div>{m.notes&&<div style={{fontSize:12,color:"#64748B",background:"#0D1117",borderRadius:8,padding:"6px 10px",marginTop:8}}>📌 {m.notes}</div>}</div>;})}</div></div>;
+}
+
+function BackupView({st,onImport,onBack}){
+  const[msg,setMsg]=useState(null);
+  const flash=(m,ok=true)=>{setMsg({m,ok});setTimeout(()=>setMsg(null),3500);};
+
+  const exportData=()=>{
+    try{
+      const payload=JSON.stringify(st,null,2);
+      const blob=new Blob([payload],{type:"application/json"});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement("a");
+      a.href=url;a.download=`jee-backup-${todayStr()}.json`;
+      document.body.appendChild(a);a.click();
+      document.body.removeChild(a);URL.revokeObjectURL(url);
+      flash("✅ Backup downloaded! Save it to Google Drive or WhatsApp yourself.");
+    }catch{flash("❌ Export failed",false);}
+  };
+
+  const handleImport=(e)=>{
+    const file=e.target.files[0];if(!file)return;
+    const reader=new FileReader();
+    reader.onload=(ev)=>{
+      try{
+        const data=JSON.parse(ev.target.result);
+        if(data&&typeof data==="object"){onImport(data);flash("✅ Data imported! All your progress is restored.");}
+        else flash("❌ Invalid backup file",false);
+      }catch{flash("❌ Could not read file — make sure it's a .json backup",false);}
+    };
+    reader.readAsText(file);e.target.value="";
+  };
+
+  const clearAll=()=>{
+    if(window.confirm("Delete ALL progress permanently? Export a backup first!")){
+      onImport({...BLANK});flash("🗑 All data cleared.");
+    }
+  };
+
+  const tCount=Object.values(st.theory||{}).filter(Boolean).length;
+  const qCount=Object.values(st.questions||{}).filter(Boolean).length;
+  const sCount=Object.keys(st.studyLog||{}).length;
+  const mCount=(st.mocks||[]).length;
+  const totalH=Object.values(st.studyLog||{}).reduce((a,b)=>a+b,0);
+  const subCount=(k)=>SYL[k].chapters.reduce((acc,ch)=>acc+ch.topics.filter(t=>st.theory[t.id]).length,0);
+
+  return<div style={G.app}>
+    <PageHdr title="Backup & Data" sub="⚙️ Settings" color="#6C63FF" onBack={onBack}/>
+    <div style={{padding:"14px"}}>
+      {msg&&<div style={{background:msg.ok?"#064E3B":"#7F1D1D",border:`1px solid ${msg.ok?"#10B981":"#EF4444"}`,borderRadius:10,padding:"10px 14px",marginBottom:12,fontSize:13,fontWeight:600,color:msg.ok?"#34D399":"#FCA5A5",lineHeight:1.4}}>{msg.m}</div>}
+
+      {/* Auto-save status */}
+      <div style={{...G.card,marginBottom:12,borderLeft:"3px solid #10B981",display:"flex",alignItems:"center",gap:10}}>
+        <div style={{fontSize:22}}>✅</div>
+        <div><div style={{fontWeight:700,fontSize:14,color:"#10B981"}}>Auto-Save Active</div><div style={{fontSize:11,color:"#64748B",marginTop:2}}>Every change saves instantly to this device's storage. No manual save needed.</div></div>
+      </div>
+
+      {/* Data summary */}
+      <div style={{...G.card,marginBottom:12}}>
+        <div style={{fontSize:11,color:"#64748B",marginBottom:10,textTransform:"uppercase",letterSpacing:1}}>Your Progress Summary</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+          {[{l:"Theory ticked",v:tCount,c:"#06B6D4"},{l:"Questions ticked",v:qCount,c:"#F43F5E"},{l:"Study sessions",v:sCount,c:"#6C63FF"},{l:"Mock tests",v:mCount,c:"#F59E0B"}].map(({l,v,c})=>(
+            <div key={l} style={{background:"#0D1117",borderRadius:8,padding:"8px 10px"}}>
+              <div style={{fontSize:20,fontWeight:800,color:c,fontFamily:"monospace"}}>{v}</div>
+              <div style={{fontSize:10,color:"#4B5563"}}>{l}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{background:"#0D1117",borderRadius:8,padding:"8px 12px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{fontSize:11,color:"#4B5563"}}>Total hours studied</div>
+          <div style={{fontSize:16,fontWeight:800,color:"#A5B4FC",fontFamily:"monospace"}}>{Math.floor(totalH)}h {Math.round((totalH%1)*60)}m</div>
+        </div>
+      </div>
+
+      {/* Export */}
+      <div style={{...G.card,marginBottom:12}}>
+        <div style={{fontWeight:700,fontSize:15,color:"#E2E8F0",marginBottom:3}}>📤 Export Backup</div>
+        <div style={{fontSize:12,color:"#64748B",marginBottom:10}}>Download all your data as a JSON file. Save it to Google Drive, WhatsApp, or any safe place. Restore it anytime.</div>
+        <button onClick={exportData} style={{...G.btn,width:"100%",padding:"12px",fontSize:14}}>Download Backup (.json)</button>
+      </div>
+
+      {/* Import */}
+      <div style={{...G.card,marginBottom:12}}>
+        <div style={{fontWeight:700,fontSize:15,color:"#E2E8F0",marginBottom:3}}>📥 Import Backup</div>
+        <div style={{fontSize:12,color:"#64748B",marginBottom:10}}>Restore from a previously exported JSON file. This replaces all current data with the backup.</div>
+        <label style={{...G.btn,width:"100%",padding:"12px",fontSize:14,display:"block",textAlign:"center",cursor:"pointer"}}>
+          Choose Backup File (.json)
+          <input type="file" accept=".json,application/json" onChange={handleImport} style={{display:"none"}}/>
+        </label>
+      </div>
+
+      {/* Danger zone */}
+      <div style={{...G.card,borderLeft:"3px solid #EF4444"}}>
+        <div style={{fontWeight:700,fontSize:15,color:"#EF4444",marginBottom:3}}>⚠️ Clear All Data</div>
+        <div style={{fontSize:12,color:"#64748B",marginBottom:10}}>Permanently deletes everything. Export a backup first! This cannot be undone.</div>
+        <button onClick={clearAll} style={{...G.btn,background:"#7F1D1D",border:"1px solid #EF4444",width:"100%",padding:"11px"}}>Clear All Data</button>
+      </div>
+    </div>
+  </div>;
+}
+
+function WeekChart({log}){
+  const days=[];for(let i=6;i>=0;i--){const d=new Date(Date.now()-i*86400000);const k=d.toISOString().split("T")[0];days.push({k,l:d.toDateString().slice(0,3),h:log[k]||0});}
+  const mx=Math.max(...days.map(d=>d.h),1);
+  return<div style={{background:"#0D1117",borderRadius:12,padding:"10px",border:"1px solid #1E2433"}}><div style={{fontSize:10,color:"#4B5563",marginBottom:6,textTransform:"uppercase",letterSpacing:0.8}}>Last 7 Days</div><div style={{display:"flex",alignItems:"flex-end",gap:3,height:48}}>{days.map(({k,l,h})=><div key={k} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}><div style={{fontSize:8,color:"#6C63FF",fontFamily:"monospace",minHeight:10}}>{h>0?h:""}</div><div style={{width:"100%",borderRadius:"3px 3px 0 0",background:h>0?"#6C63FF":"#1E2433",height:`${Math.max(4,(h/mx)*32)}px`,transition:"height 0.3s"}}/><div style={{fontSize:8,color:"#374151"}}>{l}</div></div>)}</div></div>;
+}
+
+function App(){
+  const[st,setSt]=useState({...BLANK});
+  const[view,setView]=useState("main");
+  const[selSub,setSelSub]=useState(null);
+  const[selCh,setSelCh]=useState(null);
+  const[hr,setHr]=useState("0");
+  const[mn,setMn]=useState("0");
+  const[lastSaved,setLastSaved]=useState(null);
+
+  useEffect(()=>{
+    const d=loadData();
+    if(d)setSt(merge(d));
+    const h=d?.studyLog?.[todayStr()]||0;
+    setHr(String(Math.floor(h)));setMn(String(Math.round((h%1)*60)));
+  },[]);
+
+  useEffect(()=>{saveData(st);setLastSaved(new Date());},[st]);
+
+  const upd=useCallback((fn)=>setSt(s=>({...fn(s)})),[]);
+  const saveHours=()=>{
+    const h=parseInt(hr)||0,m=parseInt(mn)||0,total=Math.round((h+m/60)*100)/100,td=todayStr();
+    upd(s=>{const yday=new Date(Date.now()-86400000).toISOString().split("T")[0];let streak=s.streak;if(s.lastStudyDate!==td){if(!s.lastStudyDate||s.lastStudyDate===yday)streak++;else streak=1;}return{...s,studyLog:{...s.studyLog,[td]:total},lastStudyDate:td,streak};});
+  };
+  const totalH=Object.values(st.studyLog||{}).reduce((a,b)=>a+b,0);
+  const tickT=(id)=>upd(s=>({...s,theory:{...s.theory,[id]:!s.theory[id]},revisionDates:{...s.revisionDates,[id]:s.revisionDates[id]||(!s.theory[id]?todayStr():undefined)}}));
+  const tickQ=(id)=>upd(s=>({...s,questions:{...s.questions,[id]:!s.questions[id]}}));
+  const tickF=(id)=>upd(s=>({...s,formulas:{...s.formulas,[id]:!s.formulas[id]}}));
+  const tickD=(id)=>upd(s=>({...s,draws:{...s.draws,[id]:!s.draws[id]}}));
+  const tickR=(id,d)=>upd(s=>({...s,revisions:{...s.revisions,[`${id}_${d}`]:!s.revisions[`${id}_${d}`]}}));
+  const tickSR=(topicId,stId,d)=>upd(s=>({...s,subtopics:{...s.subtopics,[topicId]:(s.subtopics[topicId]||[]).map(sb=>sb.id===stId?{...sb,revisions:{...(sb.revisions||{}),[d]:!(sb.revisions||{})[d]}}:sb)}}));
+  const updSubs=(topicId,arr)=>upd(s=>({...s,subtopics:{...s.subtopics,[topicId]:arr}}));
+  const chPct=(subKey,ch)=>{let tot=0,dn=0;ch.topics.forEach(t=>{tot+=2+(subKey==="physics"?1:0)+(subKey==="inorganic"?1:0);if(st.theory[t.id])dn++;if(st.questions[t.id])dn++;if(subKey==="physics"&&st.formulas[t.id])dn++;if(subKey==="inorganic"&&st.draws[t.id])dn++;(st.subtopics[t.id]||[]).forEach(sb=>{tot+=2;if(sb.theory)dn++;if(sb.questions)dn++;});});return tot?Math.round((dn/tot)*100):0;};
+  const subPct=(key)=>{const s=SYL[key];return Math.round(s.chapters.reduce((acc,c)=>acc+chPct(key,c),0)/s.chapters.length);};
+  const totalOverdue=()=>{let n=0;Object.values(SYL).forEach(sub=>sub.chapters.forEach(ch=>ch.topics.forEach(t=>{if(st.theory[t.id]&&st.revisionDates[t.id])RDAYS.forEach(d=>{if(!st.revisions[`${t.id}_${d}`]&&isPast(st.revisionDates[t.id],d))n++;});(st.subtopics[t.id]||[]).forEach(sb=>{if(sb.theory&&sb.revisionDate)RDAYS.forEach(d=>{if(!(sb.revisions||{})[d]&&isPast(sb.revisionDate,d))n++;});});})));return n;};
+
+  if(view==="topics"&&selSub&&selCh){
+    const sub=SYL[selSub],ch=sub.chapters.find(c=>c.id===selCh),color=sub.color,isP=selSub==="physics",isI=selSub==="inorganic";
+    return<div style={G.app}><PageHdr title={ch.name} sub={sub.label} color={color} onBack={()=>setView("chapter")}/><div style={{padding:"12px 14px 32px"}}>{ch.topics.map(t=>{const tOd=topicDue(t.id,st),sOd=(st.subtopics[t.id]||[]).some(s=>subDue(s)),anyOd=tOd||sOd,revMap=Object.fromEntries(RDAYS.map(d=>[d,!!st.revisions[`${t.id}_${d}`]]));return<div key={t.id} style={{...G.card,borderLeft:`3px solid ${anyOd?"#EF4444":color+"44"}`,marginBottom:12}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}><div style={{fontWeight:600,fontSize:15,color:"#E2E8F0",flex:1}}>{t.name}</div>{anyOd&&<DuePill/>}</div><div style={{display:"flex",flexDirection:"column",gap:9}}>{[{l:"Theory",on:!!st.theory[t.id],fn:()=>tickT(t.id)},{l:"Questions",on:!!st.questions[t.id],fn:()=>tickQ(t.id)},...(isP?[{l:"Formulas",on:!!st.formulas[t.id],fn:()=>tickF(t.id)}]:[]),...(isI?[{l:"Diagram (if any)",on:!!st.draws[t.id],fn:()=>tickD(t.id)}]:[])].map(({l,on,fn})=><div key={l} onClick={fn} style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer"}}><CB on={on} color={color} onClick={()=>{}}/><span style={{color:on?"#4B5563":"#CBD5E1",fontSize:14,textDecoration:on?"line-through":"none"}}>{l}</span></div>)}</div><RevBlock id={t.id} start={st.revisionDates[t.id]} doneMap={revMap} color={color} theoryOn={!!st.theory[t.id]} onTick={(d)=>tickR(t.id,d)}/><SubPanel topicId={t.id} subs={st.subtopics[t.id]||[]} color={color} onUpdate={(arr)=>updSubs(t.id,arr)}/></div>;})}  </div></div>;
+  }
+
+  if(view==="chapter"&&selSub){
+    const sub=SYL[selSub],color=sub.color,pct=subPct(selSub);
+    return<div style={G.app}><PageHdr title={sub.label} sub="Chapters" color={color} onBack={()=>{if(sub.parent==="chem")setView("chem");else setView("main");}} right={<div style={{textAlign:"right"}}><div style={{fontSize:21,fontWeight:700,color}}>{pct}%</div><div style={{fontSize:10,color:"#64748B"}}>done</div></div>}/><div style={{padding:"10px 14px 4px"}}><PBar pct={pct} color={color} h={8}/></div><div style={{padding:"10px 14px"}}>{sub.chapters.map(ch=>{const cp=chPct(selSub,ch),od=chDue(ch,st);return<div key={ch.id} onClick={()=>{setSelCh(ch.id);setView("topics");}} style={{...G.card,cursor:"pointer",marginBottom:9,borderLeft:od?"3px solid #EF4444":"1px solid #1E2433"}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}><div style={{fontWeight:600,fontSize:14,color:"#E2E8F0",flex:1}}>{ch.name}</div>{od&&<DuePill/>}<div style={{fontSize:14,fontWeight:700,color:cp===100?color:"#475569",minWidth:34,textAlign:"right"}}>{cp}%</div><div style={{color:"#374151"}}>›</div></div><PBar pct={cp} color={od?"#EF4444":color}/></div>;})}</div></div>;
+  }
+
+  if(view==="chem")return<div style={G.app}><PageHdr title="Chemistry" sub="Subject" color="#10B981" onBack={()=>setView("main")}/><div style={{padding:"14px"}}>{["physical","organic","inorganic"].map(k=>{const s=SYL[k],p=subPct(k),od=s.chapters.some(c=>chDue(c,st));return<div key={k} onClick={()=>{setSelSub(k);setView("chapter");}} style={{...G.card,cursor:"pointer",marginBottom:12,borderLeft:`4px solid ${s.color}`}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}><div style={{fontWeight:700,fontSize:16,color:s.color}}>{s.label}</div><div style={{display:"flex",alignItems:"center",gap:8}}>{od&&<DuePill/>}<div style={{fontSize:18,fontWeight:700,color:s.color}}>{p}%</div></div></div><PBar pct={p} color={s.color} h={8}/><div style={{fontSize:11,color:"#64748B",marginTop:5}}>{s.chapters.length} chapters</div></div>;})}</div></div>;
+
+  if(view==="rev")return<RevMenu st={st} onTick={tickR} onSubTick={tickSR} onBack={()=>setView("main")}/>;
+  if(view==="mocks")return<MockView mocks={st.mocks} onSave={(m,isEdit)=>upd(s=>({...s,mocks:isEdit?s.mocks.map(x=>x.id===m.id?m:x):[...s.mocks,m]}))} onDelete={(id)=>upd(s=>({...s,mocks:s.mocks.filter(m=>m.id!==id)}))} onBack={()=>setView("main")}/>;
+  if(view==="backup")return<BackupView st={st} onImport={(data)=>setSt(merge(data))} onBack={()=>setView("main")}/>;
+
+  const td=todayStr(),todH=st.studyLog[td]||0,sH=Math.floor(todH),sM=Math.round((todH%1)*60),ovd=totalOverdue();
+  const savedAgo=lastSaved?`Saved ${Math.floor((Date.now()-lastSaved)/1000)<5?"just now":Math.floor((Date.now()-lastSaved)/60000)<1?`${Math.floor((Date.now()-lastSaved)/1000)}s ago`:`${Math.floor((Date.now()-lastSaved)/60000)}m ago`}`:"";
+  return<div style={G.app}>
+
+    <div style={{display:"flex",gap:10,padding:"14px 14px 10px",alignItems:"center"}}>
+      <div style={{...G.card,flex:1,padding:"12px 14px"}}>
+        <div style={{fontSize:10,color:"#64748B",marginBottom:5,textTransform:"uppercase",letterSpacing:0.8}}>Today's Study</div>
+        <div style={{display:"flex",alignItems:"center",gap:5}}>
+          <input type="number" min="0" max="24" value={hr} onChange={e=>setHr(e.target.value)} style={{...G.numI,width:40}} placeholder="0"/>
+          <span style={{color:"#64748B",fontSize:12}}>h</span>
+          <input type="number" min="0" max="59" value={mn} onChange={e=>setMn(e.target.value)} style={{...G.numI,width:40}} placeholder="0"/>
+          <span style={{color:"#64748B",fontSize:12}}>m</span>
+          <button onClick={saveHours} style={{...G.btn,padding:"5px 10px"}}>✓</button>
+        </div>
+        {todH>0&&<div style={{fontSize:10,color:"#6C63FF",marginTop:4}}>Saved: {sH}h {sM>0?`${sM}m`:""}</div>}
+      </div>
+      <div style={{...G.card,textAlign:"center",minWidth:80,padding:"10px 12px"}}>
+        <Flame/><div style={{fontSize:22,fontWeight:800,color:"#F59E0B",lineHeight:1.1}}>{st.streak}</div>
+        <div style={{fontSize:10,color:"#92400E"}}>streak</div>
+      </div>
+    </div>
+    <div style={{margin:"0 14px 10px",background:"linear-gradient(135deg,#13103A,#0D1117)",borderRadius:14,padding:"12px 16px",border:"1px solid #2D2560"}}>
+      <div style={{fontSize:11,color:"#6C63FF"}}>Total Study Time</div>
+      <div style={{fontSize:25,fontWeight:800,color:"#A5B4FC",fontFamily:"monospace"}}>{Math.floor(totalH)}h {Math.round((totalH%1)*60)}m</div>
+      <div style={{fontSize:10,color:"#4B5563",marginTop:2}}>across {Object.keys(st.studyLog||{}).length} sessions</div>
+    </div>
+    {Object.keys(st.studyLog||{}).length>0&&<div style={{padding:"0 14px 8px"}}><WeekChart log={st.studyLog}/></div>}
+    <div onClick={()=>setView("rev")} style={{...G.card,cursor:"pointer",margin:"0 14px 10px",borderLeft:`4px solid ${ovd>0?"#EF4444":"#374151"}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+      <div><div style={{fontSize:11,color:"#64748B"}}>📅</div><div style={{fontWeight:700,fontSize:16,color:ovd>0?"#EF4444":"#94A3B8"}}>Revision Due</div><div style={{fontSize:12,color:"#4B5563",marginTop:1}}>{ovd===0?"All caught up! ✅":`${ovd} revision${ovd>1?"s":""} pending`}</div></div>
+      {ovd>0&&<div style={{background:"#7F1D1D",borderRadius:12,padding:"8px 14px",border:"1px solid #EF4444",textAlign:"center"}}><div style={{fontSize:24,fontWeight:800,color:"#EF4444",fontFamily:"monospace"}}>{ovd}</div><div style={{fontSize:9,color:"#EF4444",textTransform:"uppercase"}}>overdue</div></div>}
+    </div>
+    {(()=>{const ms=st.mocks||[],tot=m=>(parseFloat(m.physics)||0)+(parseFloat(m.chemistry)||0)+(parseFloat(m.maths)||0),sc=s=>s>=200?"#10B981":s>=150?"#F59E0B":"#F43F5E",best=ms.length?Math.max(...ms.map(tot)):null,latest=ms.length?tot(ms[ms.length-1]):null;return<div onClick={()=>setView("mocks")} style={{...G.card,cursor:"pointer",margin:"0 14px 10px",borderLeft:"4px solid #F59E0B",display:"flex",alignItems:"center",justifyContent:"space-between"}}><div><div style={{fontSize:11,color:"#64748B"}}>📝</div><div style={{fontWeight:700,fontSize:16,color:"#F59E0B"}}>Mock Tests</div><div style={{fontSize:12,color:"#4B5563",marginTop:1}}>{ms.length===0?"No tests yet":`${ms.length} test${ms.length>1?"s":""} recorded`}</div></div>{ms.length>0&&<div style={{display:"flex",gap:12}}>{[{l:"Best",v:best},{l:"Latest",v:latest}].map(({l,v})=><div key={l} style={{textAlign:"center"}}><div style={{fontSize:10,color:"#4B5563"}}>{l}</div><div style={{fontSize:19,fontWeight:800,color:sc(v),fontFamily:"monospace"}}>{v}</div></div>)}</div>}</div>;})()}
+    <div onClick={()=>setView("backup")} style={{...G.card,cursor:"pointer",margin:"0 14px 10px",borderLeft:"4px solid #6C63FF",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+      <div><div style={{fontSize:11,color:"#64748B"}}>⚙️</div><div style={{fontWeight:700,fontSize:16,color:"#6C63FF"}}>Backup & Data</div><div style={{fontSize:12,color:"#4B5563",marginTop:1}}>Export · Import · Auto-save active</div></div>
+      <div style={{fontSize:22,color:"#2D3748"}}>›</div>
+    </div>
+    <div style={{padding:"4px 14px 28px"}}>
+      <div style={{fontSize:11,color:"#4B5563",marginBottom:8,textTransform:"uppercase",letterSpacing:1}}>Subjects</div>
+      {[{key:"maths",label:"Mathematics",emoji:"📐"},{key:"physics",label:"Physics",emoji:"⚡"},{key:"chem_menu",label:"Chemistry",emoji:"🧪",color:"#10B981",pct:Math.round((subPct("physical")+subPct("organic")+subPct("inorganic"))/3),od:["physical","organic","inorganic"].some(k=>SYL[k].chapters.some(c=>chDue(c,st)))}].map(({key,label,emoji,color,pct:cp,od})=>{
+        const isC=key==="chem_menu",subKey=isC?null:key,c=color||(subKey?SYL[subKey].color:"#6C63FF"),p=cp!==undefined?cp:subPct(subKey),hasOd=od||(subKey&&SYL[subKey].chapters.some(ch=>chDue(ch,st)));
+        return<div key={key} onClick={()=>{if(isC)setView("chem");else{setSelSub(key);setView("chapter");}}} style={{...G.card,cursor:"pointer",marginBottom:10,borderLeft:`4px solid ${c}`}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}><div><div style={{fontSize:11,color:"#64748B"}}>{emoji}</div><div style={{fontWeight:700,fontSize:16,color:c}}>{label}</div></div><div style={{display:"flex",alignItems:"center",gap:8}}>{hasOd&&<DuePill/>}<div style={{textAlign:"right"}}><div style={{fontSize:21,fontWeight:800,color:p>0?c:"#374151"}}>{p}%</div><div style={{fontSize:10,color:"#4B5563"}}>done</div></div></div></div><PBar pct={p} color={c} h={7}/></div>;
+      })}
+    </div>
+  </div>;
+}
+
+const G={
+  app:{minHeight:"100vh",background:"#0F1117",color:"#E2E8F0",fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",maxWidth:480,margin:"0 auto",paddingBottom:32},
+  card:{background:"#161B27",borderRadius:14,padding:"12px 14px",border:"1px solid #1E2433"},
+  btn:{background:"#6C63FF",border:"none",borderRadius:8,color:"white",fontWeight:700,fontSize:13,cursor:"pointer"},
+  inp:{background:"#0F1117",border:"1px solid #2D3748",borderRadius:8,color:"#E2E8F0",fontSize:13,padding:"7px 10px",outline:"none",fontFamily:"monospace"},
+  numI:{background:"#0F1117",border:"1px solid #2D3748",borderRadius:8,color:"#E2E8F0",fontSize:16,fontWeight:700,padding:"5px 4px",outline:"none",fontFamily:"monospace",textAlign:"center"},
+  lbl:{fontSize:10,color:"#64748B",marginBottom:3,textTransform:"uppercase",letterSpacing:0.5},
+};
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
